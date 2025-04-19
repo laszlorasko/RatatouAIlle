@@ -5,7 +5,7 @@
 
 ### 1.1 Introduction
 
-RatatouAIlle is a family-friendly, easy-to-use web application designed to generate personalized weekly meal plans for households with diverse dietary preferences and requirements. The application leverages OpenAI's GPT-4 for meal plan generation and DALL-E for food images, providing users with comprehensive meal plans, recipes, and shopping lists.
+RatatouAIlle is a family-friendly, easy-to-use web application designed to generate personalized weekly meal plans for households with diverse dietary preferences and requirements. The application leverages OpenRouter.ai's API to access powerful language models for meal plan generation, providing users with comprehensive meal plans, recipes, and shopping lists.
 
 ### 1.2 Vision Statement
 
@@ -42,7 +42,6 @@ To simplify family meal planning by creating personalized, diverse, and nutritio
 4. **Meal Plan Generation**
    - Generate weekly meal plans (breakfast, lunch, dinner)
    - Display recipes with titles, ingredients, and steps
-   - AI-generated images for meals
    - Option to regenerate specific meals
 
 5. **Shopping List Generation**
@@ -125,7 +124,6 @@ To simplify family meal planning by creating personalized, diverse, and nutritio
 - As a user, I want to generate a weekly meal plan so that I can plan my grocery shopping and cooking.
 - As a user, I want to see recipes for each meal so that I know how to prepare them.
 - As a user, I want to regenerate specific meals so that I can customize the meal plan.
-- As a user, I want to see images of the meals so that I can visualize what I'm cooking.
 
 **Requirements:**
 - Generate complete weekly meal plans (breakfast, lunch, dinner)
@@ -135,7 +133,6 @@ To simplify family meal planning by creating personalized, diverse, and nutritio
   - Step-by-step instructions
   - Cooking and prep time
   - Nutritional information
-- AI-generated images for each meal
 - Option to regenerate specific meals or entire days
 - Simple UI for viewing and interacting with the meal plan
 
@@ -173,7 +170,7 @@ To simplify family meal planning by creating personalized, diverse, and nutritio
 - **Frontend**: React with TypeScript, Next.js for server-side rendering, and Tailwind CSS for styling
 - **Backend**: Next.js API routes (unified frontend/backend)
 - **Database**: Supabase (PostgreSQL + authentication + storage)
-- **LLM API**: OpenAI's GPT-4 for meal plan generation, DALL-E for food images
+- **LLM API**: OpenRouter.ai API for accessing powerful language models for meal plan generation
 - **Deployment**: Vercel for the Next.js application with Supabase cloud for backend services
 
 ### 4.2 System Architecture
@@ -183,9 +180,8 @@ graph TD
     A[User Interface] --> B[Next.js Frontend]
     B <--> C[Next.js API Routes]
     C <--> D[Supabase Database]
-    C <--> E[OpenAI API]
-    E --> F[GPT-4 for Meal Plans]
-    E --> G[DALL-E for Images]
+    C <--> E[OpenRouter.ai API]
+    E --> F[LLM for Meal Plans]
     D --> H[User Data]
     D --> I[Family Members]
     D --> J[Preferences]
@@ -196,7 +192,9 @@ graph TD
 
 ### 4.3 API Integration
 
-#### 4.3.1 OpenAI API Integration
+#### 4.3.1 OpenRouter.ai API Integration
+
+OpenRouter.ai provides a unified API that allows access to various large language models. This section details how RatatouAIlle will integrate with OpenRouter.ai to generate meal plans.
 
 ```mermaid
 sequenceDiagram
@@ -204,7 +202,7 @@ sequenceDiagram
     participant Frontend
     participant API Route
     participant Cache
-    participant OpenAI
+    participant OpenRouter
     participant Supabase
     
     User->>Frontend: Request Meal Plan
@@ -214,23 +212,90 @@ sequenceDiagram
     alt Cache Hit
         Cache->>API Route: Return cached plan
     else Cache Miss
-        API Route->>OpenAI: Send structured prompt to GPT-4
-        OpenAI->>API Route: Return meal plan data
-        API Route->>OpenAI: Send image generation requests to DALL-E
-        OpenAI->>API Route: Return meal images
-        API Route->>Cache: Store plan and images
+        API Route->>OpenRouter: Send structured prompt to LLM
+        OpenRouter->>API Route: Return meal plan data
+        API Route->>Cache: Store plan
     end
     
     API Route->>Supabase: Save meal plan to database
     API Route->>Frontend: Return complete meal plan
-    Frontend->>User: Display meal plan with images
+    Frontend->>User: Display meal plan
 ```
+
+##### OpenRouter.ai Request and Response Flow
+
+1. **Request Preparation**:
+   ```typescript
+   // Prepare the request to OpenRouter.ai
+   const requestBody = {
+     model: "anthropic/claude-3-opus-20240229", // Or another preferred model
+     messages: [
+       { role: "system", content: systemMessage },
+       { role: "user", content: userMessage }
+     ],
+     temperature: 0.7,
+     max_tokens: 4000,
+     headers: {
+       "HTTP-Referer": "https://ratatouaille.com", // Your domain
+       "X-Title": "RatatouAIlle Meal Planner"      // Your app name
+     }
+   };
+   ```
+
+2. **API Call**:
+   ```typescript
+   // Make the API call to OpenRouter.ai
+   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+     method: "POST",
+     headers: {
+       "Content-Type": "application/json",
+       "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`
+     },
+     body: JSON.stringify(requestBody)
+   });
+   
+   const data = await response.json();
+   ```
+
+3. **Response Processing**:
+   ```typescript
+   // Extract the LLM's response
+   const llmResponse = data.choices[0].message.content;
+   
+   // Parse the JSON response into a structured meal plan
+   const mealPlan = parseMealPlanResponse(llmResponse);
+   ```
+
+4. **Error Handling**:
+   ```typescript
+   try {
+     // API call and processing
+   } catch (error) {
+     // Implement retry logic
+     if (retries < maxRetries) {
+       // Wait and retry with exponential backoff
+       await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+       return generateMealPlan(familyMembers, preferences, constraints, customPrompt, retries + 1);
+     }
+     
+     // If all retries fail, return a fallback plan or error message
+     throw new Error("Failed to generate meal plan after multiple attempts");
+   }
+   ```
+
+##### Model Selection Strategy
+
+OpenRouter.ai provides access to various models with different capabilities and pricing. The application will implement a model selection strategy:
+
+1. **Default Model**: Anthropic's Claude or similar high-quality model for reliable meal plan generation
+2. **Fallback Models**: Less expensive models for when the primary model is unavailable or during high traffic
+3. **Model Rotation**: Ability to switch between models based on performance, availability, and cost
 
 #### 4.3.2 Supabase Integration
 
 - Authentication: Email/password and social login options
 - Database: PostgreSQL for structured data storage
-- Storage: File storage for user-uploaded images and cached meal images
+- Storage: File storage for user-uploaded images and cached meal plans
 - Real-time: Real-time updates for collaborative features (future)
 
 ## 5. Data Model
@@ -497,7 +562,6 @@ graph TD
 - Generate shopping list button
 
 #### 6.2.8 Recipe Detail View
-- Meal image
 - Ingredients list
 - Step-by-step instructions
 - Nutritional information
@@ -509,7 +573,7 @@ graph TD
 - Checkbox for each item
 - Print/share functionality
 
-## 7. OpenAI Integration
+## 7. OpenRouter.ai Integration
 
 ### 7.1 Prompt Engineering
 
@@ -605,15 +669,8 @@ function constructUserMessage(
 ### 7.2 API Wrapper Implementation
 
 ```typescript
-// api/openai.ts
-import { Configuration, OpenAIApi } from 'openai';
+// api/openrouter.ts
 import { MealPlan, FamilyMember, Preference, MealConstraints } from '../types';
-
-const configuration = new Configuration({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-const openai = new OpenAIApi(configuration);
 
 // Cache implementation using Redis or similar service
 const cache = new MealPlanCache();
@@ -622,7 +679,8 @@ export async function generateMealPlan(
   familyMembers: FamilyMember[],
   preferences: Preference[],
   constraints: MealConstraints,
-  customPrompt: string
+  customPrompt: string,
+  retries = 0
 ): Promise<MealPlan> {
   // Generate cache key based on input parameters
   const cacheKey = generateCacheKey(familyMembers, preferences, constraints, customPrompt);
@@ -633,90 +691,137 @@ export async function generateMealPlan(
     return cachedPlan;
   }
   
-  // Construct prompt for GPT-4
-  const systemMessageContent = systemMessage.content
-    .replace('{breakfastTime}', constraints.cookingTime.breakfast.toString())
-    .replace('{lunchTime}', constraints.cookingTime.lunch.toString())
-    .replace('{dinnerTime}', constraints.cookingTime.dinner.toString());
-  
-  const prompt = [
-    { ...systemMessage, content: systemMessageContent },
-    { role: "user", content: constructUserMessage(familyMembers, preferences, constraints, customPrompt) }
-  ];
-  
-  // Call OpenAI API
-  const completion = await openai.createChatCompletion({
-    model: "gpt-4",
-    messages: prompt,
-    temperature: 0.7,
-    max_tokens: 4000,
-  });
-  
-  // Parse response into structured meal plan
-  const mealPlan = parseMealPlanResponse(completion.data.choices[0].message.content);
-  
-  // Generate images for each meal
-  await generateMealImages(mealPlan);
-  
-  // Cache the result
-  await cache.set(cacheKey, mealPlan, 60 * 60 * 24); // Cache for 24 hours
-  
-  return mealPlan;
+  try {
+    // Construct prompt for LLM
+    const systemMessageContent = systemMessage.content
+      .replace('{breakfastTime}', constraints.cookingTime.breakfast.toString())
+      .replace('{lunchTime}', constraints.cookingTime.lunch.toString())
+      .replace('{dinnerTime}', constraints.cookingTime.dinner.toString());
+    
+    // Prepare the request to OpenRouter.ai
+    const requestBody = {
+      model: "anthropic/claude-3-opus-20240229", // Or another preferred model
+      messages: [
+        { role: "system", content: systemMessageContent },
+        { role: "user", content: constructUserMessage(familyMembers, preferences, constraints, customPrompt) }
+      ],
+      temperature: 0.7,
+      max_tokens: 4000,
+      headers: {
+        "HTTP-Referer": "https://ratatouaille.com", // Your domain
+        "X-Title": "RatatouAIlle Meal Planner"      // Your app name
+      }
+    };
+    
+    // Make the API call to OpenRouter.ai
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`OpenRouter API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    // Parse response into structured meal plan
+    const mealPlan = parseMealPlanResponse(data.choices[0].message.content);
+    
+    // Cache the result
+    await cache.set(cacheKey, mealPlan, 60 * 60 * 24); // Cache for 24 hours
+    
+    return mealPlan;
+  } catch (error) {
+    console.error("Error generating meal plan:", error);
+    
+    // Implement retry logic
+    const maxRetries = 3;
+    if (retries < maxRetries) {
+      console.log(`Retrying (${retries + 1}/${maxRetries})...`);
+      // Wait and retry with exponential backoff
+      await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+      return generateMealPlan(familyMembers, preferences, constraints, customPrompt, retries + 1);
+    }
+    
+    // If all retries fail, return a fallback plan or error message
+    throw new Error("Failed to generate meal plan after multiple attempts");
+  }
+}
+
+function parseMealPlanResponse(response: string): MealPlan {
+  try {
+    // Extract JSON from response (in case LLM adds extra text)
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error("No valid JSON found in response");
+    }
+    
+    const jsonResponse = JSON.parse(jsonMatch[0]);
+    
+    // Validate response structure
+    if (!jsonResponse.weeklyPlan || !Array.isArray(jsonResponse.weeklyPlan)) {
+      throw new Error("Invalid response structure");
+    }
+    
+    // Transform to application data model
+    const mealPlan: MealPlan = {
+      id: uuidv4(),
+      weekStart: getStartOfWeek(new Date()),
+      meals: [],
+    };
+    
+    // Flatten the structure for easier database storage
+    for (const day of jsonResponse.weeklyPlan) {
+      for (const meal of day.meals) {
+        mealPlan.meals.push({
+          id: uuidv4(),
+          day: day.day,
+          type: meal.type,
+          title: meal.title,
+          description: meal.description,
+          prepTime: meal.prepTime,
+          cookTime: meal.cookTime,
+          ingredients: meal.ingredients,
+          steps: meal.steps,
+          suitableFor: meal.suitableFor,
+          nutritionalInfo: meal.nutritionalInfo,
+          imageUrl: null, // Will be populated in a future phase
+        });
+      }
+    }
+    
+    return mealPlan;
+  } catch (error) {
+    console.error("Failed to parse meal plan response:", error);
+    throw new Error("Failed to generate meal plan. Please try again.");
+  }
 }
 ```
 
-### 7.3 Image Generation
+### 7.3 Model Selection Strategy
+
+OpenRouter.ai provides access to various language models with different capabilities and pricing. The application will implement a model selection strategy:
 
 ```typescript
-async function generateMealImages(mealPlan: MealPlan): Promise<void> {
-  // Process meals in batches to avoid rate limits
-  const batches = chunkArray(mealPlan.meals, 5);
-  
-  for (const batch of batches) {
-    const imagePromises = batch.map(async (meal) => {
-      const imagePrompt = craftImagePrompt(meal);
-      
-      const response = await openai.createImage({
-        prompt: imagePrompt,
-        n: 1,
-        size: "512x512", // Smaller size to reduce costs
-      });
-      
-      meal.imageUrl = response.data.data[0].url;
-    });
-    
-    await Promise.all(imagePromises);
-    // Add delay between batches to avoid rate limits
-    await new Promise(resolve => setTimeout(resolve, 1000));
-  }
-}
-
-function craftImagePrompt(meal: Meal): string {
-  // Base prompt structure
-  let prompt = `A delicious, appetizing photo of ${meal.title}, `;
-  
-  // Add meal type context
-  if (meal.type === 'breakfast') {
-    prompt += 'served for breakfast, morning lighting, ';
-  } else if (meal.type === 'lunch') {
-    prompt += 'served for lunch, bright daylight setting, ';
-  } else {
-    prompt += 'served for dinner, warm evening ambiance, ';
+// Model selection based on requirements and availability
+function selectModel(constraints: MealConstraints, familyMembers: FamilyMember[]): string {
+  // Default to a high-quality model for complex meal plans
+  if (constraints.complexityLevel === 'high' || familyMembers.length > 5) {
+    return "anthropic/claude-3-opus-20240229";
   }
   
-  // Add styling details
-  prompt += 'professional food photography style, on a beautiful plate, high quality, ';
-  
-  // Add ingredient highlights if the meal has distinctive ingredients
-  const keyIngredients = extractKeyIngredients(meal.ingredients, 3);
-  if (keyIngredients.length > 0) {
-    prompt += `featuring ${keyIngredients.join(', ')}, `;
+  // Use a balanced model for standard meal plans
+  if (constraints.complexityLevel === 'medium' || familyMembers.length > 2) {
+    return "anthropic/claude-3-sonnet-20240229";
   }
   
-  // Ensure the image is appetizing and realistic
-  prompt += 'appetizing, realistic, no text, no watermarks, centered composition';
-  
-  return prompt;
+  // Use a cost-effective model for simple meal plans
+  return "anthropic/claude-3-haiku-20240307";
 }
 ```
 
@@ -729,7 +834,7 @@ function craftImagePrompt(meal: Meal): string {
 
 2. **Batched Requests**
    - Generate multiple meals in a single API call
-   - Batch image generation requests
+   - Optimize prompt structure to reduce token usage
 
 3. **Token Usage Optimization**
    - Carefully design prompts to minimize token usage
@@ -739,102 +844,9 @@ function craftImagePrompt(meal: Meal): string {
    - Implement daily/weekly limits on meal plan generations
    - Add cooldown periods between generations
 
-5. **Image Optimization**
-   - Use smaller image sizes for DALL-E
-   - Implement lazy loading for images
-
-### 7.5 Authentication Implementation
-
-```typescript
-// pages/api/auth/[...nextauth].ts
-import NextAuth from 'next-auth';
-import CredentialsProvider from 'next-auth/providers/credentials';
-import GoogleProvider from 'next-auth/providers/google';
-import FacebookProvider from 'next-auth/providers/facebook';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-export default NextAuth({
-  providers: [
-    // Email/Password authentication using Supabase
-    CredentialsProvider({
-      name: 'Credentials',
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          return null;
-        }
-        
-        // Authenticate with Supabase
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: credentials.email,
-          password: credentials.password,
-        });
-        
-        if (error || !data.user) {
-          return null;
-        }
-        
-        return {
-          id: data.user.id,
-          email: data.user.email,
-        };
-      }
-    }),
-    
-    // Social login providers
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
-    FacebookProvider({
-      clientId: process.env.FACEBOOK_CLIENT_ID!,
-      clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
-    }),
-  ],
-  
-  // Session configuration
-  session: {
-    strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-  },
-  
-  // JWT configuration
-  jwt: {
-    secret: process.env.JWT_SECRET,
-  },
-  
-  // Callbacks
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.id as string;
-      }
-      return session;
-    },
-  },
-  
-  // Pages
-  pages: {
-    signIn: '/auth/signin',
-    signOut: '/auth/signout',
-    error: '/auth/error',
-    verifyRequest: '/auth/verify-request',
-  },
-});
+5. **Model Selection**
+   - Use appropriate models based on complexity requirements
+   - Implement fallback to less expensive models during high traffic
 
 ## 8. Development Timeline
 
@@ -846,7 +858,7 @@ export default NextAuth({
    - Initialize Next.js project with TypeScript
    - Set up Tailwind CSS
    - Configure Supabase connection
-   - Set up OpenAI API integration
+   - Set up OpenRouter.ai API integration
 
 2. **Authentication Implementation (2 hours)**
    - Set up Supabase authentication
@@ -872,10 +884,9 @@ export default NextAuth({
    - Connect to Supabase database
 
 2. **Meal Plan Generation (5 hours)**
-   - Design prompt engineering for OpenAI
+   - Design prompt engineering for OpenRouter.ai
    - Implement API route for meal plan generation
    - Create caching mechanism for API responses
-   - Implement image generation with DALL-E
 
 3. **Meal Plan Display (4 hours)**
    - Create UI for displaying meal plans
@@ -907,6 +918,7 @@ export default NextAuth({
 2. Saved favorites functionality
 3. Basic feedback system
 4. Improved UI/UX
+5. Image generation for meals
 
 #### Phase 3: Advanced Features (2-3 weeks)
 
@@ -930,6 +942,7 @@ export default NextAuth({
    - Onboarding tutorial
    - User preference profiles
    - Meal plan templates
+   - AI-generated images for meals
 
 2. **Content Enhancements**
    - Seasonal recipe suggestions
@@ -939,7 +952,7 @@ export default NextAuth({
 3. **Performance Optimizations**
    - Advanced caching strategies
    - Optimized API usage
-   - Improved image loading
+   - Improved model selection
 
 ### 9.2 Medium-term Features (3-6 months)
 
@@ -969,6 +982,7 @@ export default NextAuth({
    - Predictive shopping lists
    - Adaptive learning from global user preferences
    - Personalized cooking instructions
+   - High-quality food imagery generation
 
 3. **Business Model Evolution**
    - Premium subscription tiers
@@ -1001,7 +1015,7 @@ export default NextAuth({
 
 5. **API Key Protection**
    - No API keys or secrets exposed in frontend code
-   - All API calls to OpenAI routed through backend Next.js API routes
+   - All API calls to OpenRouter.ai routed through backend Next.js API routes
    - Environment variables properly secured in Vercel deployment
 
 ### 10.2 Backend Security
@@ -1065,10 +1079,10 @@ export default NextAuth({
    - Set up alerts for suspicious activities
    - Regular security audits
 
-### 10.4 OpenAI API Security
+### 10.4 OpenRouter.ai API Security
 
 1. **API Key Management**
-   - Secure storage of OpenAI API keys in environment variables
+   - Secure storage of OpenRouter.ai API keys in environment variables
    - Regular rotation of API keys
    - Implement usage monitoring and alerts
 
@@ -1078,7 +1092,7 @@ export default NextAuth({
    - Use system messages to establish boundaries
 
 3. **Response Validation**
-   - Validate and sanitize all responses from OpenAI
+   - Validate and sanitize all responses from OpenRouter.ai
    - Implement content filtering for inappropriate content
    - Handle API failures gracefully
 
@@ -1086,6 +1100,6 @@ export default NextAuth({
 
 RatatouAIlle aims to solve the common problem of family meal planning by leveraging AI to generate personalized meal plans that accommodate diverse dietary preferences and requirements. The MVP will focus on the core user flow of family member registration, preference setting, meal plan generation, and shopping list creation, with a development timeline of 2-3 days.
 
-The technical architecture leverages modern technologies (Next.js, Supabase, OpenAI) to create a seamless user experience while optimizing for development speed and cost efficiency. The product roadmap outlines a clear path for future enhancements and features that will add value to users over time.
+The technical architecture leverages modern technologies (Next.js, Supabase, OpenRouter.ai) to create a seamless user experience while optimizing for development speed and cost efficiency. The product roadmap outlines a clear path for future enhancements and features that will add value to users over time, including the addition of AI-generated food images in a future phase.
 
 By focusing on solving a specific pain point with a well-defined MVP and clear future direction, RatatouAIlle has the potential to become an essential tool for families seeking to simplify their meal planning process.

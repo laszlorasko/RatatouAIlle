@@ -8,7 +8,7 @@
 - [ ] Configure ESLint and Prettier
 - [ ] Create project structure (pages, components, api, etc.)
 - [ ] Set up Supabase connection
-- [ ] Configure OpenAI API integration
+- [ ] Configure OpenRouter.ai API integration
 - [ ] Set up environment variables
 
 ### Authentication Implementation
@@ -68,17 +68,15 @@
 - [ ] Implement constraints saving functionality
 
 ### Meal Plan Generation
-- [ ] Design system message for OpenAI
+- [ ] Design system message for OpenRouter.ai
 - [ ] Implement user message construction
 - [ ] Create API route for meal plan generation
-- [ ] Implement OpenAI API call
+- [ ] Implement OpenRouter.ai API call
 - [ ] Create response parsing function
 - [ ] Implement error handling
 - [ ] Create caching mechanism for API responses
 - [ ] Set up Redis or similar caching service
-- [ ] Implement image generation with DALL-E
-- [ ] Create image prompt engineering function
-- [ ] Add batch processing for image generation
+- [ ] Implement model selection strategy
 
 ### Meal Plan Display
 - [ ] Create weekly calendar view component
@@ -142,6 +140,7 @@
 - [ ] Saved favorites functionality
 - [ ] Basic feedback system
 - [ ] Improved UI/UX
+- [ ] Implement image generation for meals
 
 ### Phase 3: Advanced Features
 - [ ] Continuous learning from user feedback
@@ -154,3 +153,4 @@
 - [ ] Mobile app version
 - [ ] Integration with recipe databases
 - [ ] Advanced dietary analysis
+- [ ] High-quality food imagery generation
